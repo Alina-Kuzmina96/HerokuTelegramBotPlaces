@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import telebot
 from collections import defaultdict
 from conn_db import update, list_places, places, search_place, del_place, del_list, near_places
