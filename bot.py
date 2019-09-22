@@ -114,7 +114,7 @@ def handle_message(message):
 		if len(PLACES[message.chat.id]) != 0:
 			i = 0 
 			for lst in PLACES[message.chat.id]:
-				if lst[0] == name:
+				if lst[0].lower() == name.lower():
 					i += 1
 					bot.send_message(message.chat.id,text="адрес: " + lst[1])
 					if lst[2] != 'нет':
@@ -136,7 +136,7 @@ def handle_message(message):
 			if len(PLACES[message.chat.id]) != 0:
 				del_lst = -1
 				for i in range(len(PLACES[message.chat.id])):
-					if PLACES[message.chat.id][i][0] == name:
+					if PLACES[message.chat.id][i][0].lower() == name.lower():
 						del_lst = i
 				if del_lst != -1:
 					PLACES[message.chat.id].pop(del_lst)
