@@ -115,11 +115,13 @@ def handle_message(message):
 			for lst in PLACES[message.chat.id]:
 				if lst[0] == name:
 					bot.send_message(message.chat.id,text="адрес: " + lst[1])
-				if lst[2] != 'нет':
-					bot.send_location(message.chat.id, float(lst[2]), float(lst[3]))
-				if lst[4] != 'нет':
-					photo = open("images\\" + lst[4], 'rb')
-					bot.send_photo(message.chat.id, photo)
+					if lst[2] != 'нет':
+						bot.send_location(message.chat.id, float(lst[2]), float(lst[3]))
+					if lst[4] != 'нет':
+						photo = open("images\\" + lst[4], 'rb')
+						bot.send_photo(message.chat.id, photo)
+				else:
+					bot.send_message(message.chat.id,text='Такое место не найдено.')
 	else:
 		bot.send_message(message.chat.id,text='Такое место не найдено.')
 
