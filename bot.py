@@ -2,7 +2,6 @@
 
 import telebot
 from collections import defaultdict
-from conn_db import update, list_places, places, search_place, del_place, del_list, near_places
 from haversine import haversine
 
 
@@ -22,26 +21,14 @@ def update_state(message, state):
 def update_place(user_id, val):
 	#поиск мест, с неполными данными и добавление новых
 	for key in PLACES:
-		if key == user_id and len(PLACES[key]) < 5:
-			PLACES[key].append(val)
-
-def update_db():
-	del_list = []
-	for key in PLACES:
-		if len(PLACES[key]) == 5:
-			user_id = str(key)
-			place_name = str(PLACES[key][0])
-			place_adress = str(PLACES[key][1])
-			place_latitude = str(PLACES[key][2])
-			place_longitude = str(PLACES[key][3])
-			place_image = str(PLACES[key][4])
-			update(user_id, place_name, place_adress, place_latitude, place_longitude, place_image)
-			del_list += [key]
-	for key in del_list:
-		del PLACES[key]
-
-
-
+		if key == user_id:
+			l = 0
+			for place in PLACES[key]:
+				if len(place) < 5:
+					l +=1
+					place.append(val)
+			if l == 0:
+				PLACES[key].append([val])
 
 
 bot = telebot.TeleBot(token)
@@ -55,7 +42,9 @@ def handle_message(message):
 def handle_name(message):
 	bot.send_message(message.chat.id,text='Укажи адрес.')
 	update_state(message, ADDRESS)
-	PLACES[message.chat.id] = [message.text] #создаем ключ c первой записью - название места 
+	if message.chat.id not in PLACES:
+		PLACES[message.chat.id] = [] #создаем ключ
+	update_place(message.chat.id, message.text)
 
 @bot.message_handler(func=lambda message: get_state(message) == ADDRESS)
 def handle_address(message):
@@ -83,8 +72,6 @@ def handle_location(message):
 			update_place(message.chat.id, lon)
 		else:
 			bot.send_message(message.chat.id,text='Неправильно введенные данные. Попробуй снова.')
-			#update_state(message, START)
-
 
 	
 @bot.message_handler(func=lambda message: get_state(message) == PHOTO, content_types=['photo', 'text'])
@@ -97,13 +84,11 @@ def handle_photo(message):
 		with open(src, 'wb') as new_file:
 			new_file.write(downloaded_file)
 		update_place(message.chat.id, str(message.photo[0].file_id))
-		update_db()
 		bot.send_message(message.chat.id,text='Ваше любимое место сохранено.')
 		update_state(message, START)
 	else:
 		if message.text.lower() == 'нет':
 			update_place(message.chat.id, 'нет')
-			update_db()
 			bot.send_message(message.chat.id,text='Ваше любимое место сохранено.')
 			update_state(message, START)
 		else:
@@ -112,10 +97,12 @@ def handle_photo(message):
 
 @bot.message_handler(commands=['list']) 
 def handle_message(message):
-	results = list_places(message)
-	if len(results) != 0:
-		for row in results:
-			bot.send_message(message.chat.id,text=row['name'])
+	if message.chat.id in PLACES:
+		if len(PLACES[message.chat.id]) != 0:
+			for lst in PLACES[message.chat.id]:
+				bot.send_message(message.chat.id,text=lst[0])
+		else:
+			bot.send_message(message.chat.id,text='Список мест пуст')
 	else:
 		bot.send_message(message.chat.id,text='Список мест пуст')
 
@@ -123,15 +110,16 @@ def handle_message(message):
 @bot.message_handler(commands=['place'])
 def handle_message(message):
 	name = message.text[7:]
-	results = places(message, name)
-	if len(results) != 0:
-		for row in results:
-			bot.send_message(message.chat.id,text="адрес: " + row['adress'])
-			if row['latitide'] != 'нет':
-				bot.send_location(message.chat.id, float(row['latitide']), float(row['longitude']))
-			if row['image'] != 'нет':
-				photo = open("images\\" + row['image'], 'rb')
-				bot.send_photo(message.chat.id, photo)
+	if message.chat.id in PLACES:
+		if len(PLACES[message.chat.id]) != 0:
+			for lst in PLACES[message.chat.id]:
+				if lst[0] == name:
+					bot.send_message(message.chat.id,text="адрес: " + lst[1])
+				if lst[2] != 'нет':
+					bot.send_location(message.chat.id, float(lst[2]), float(lst[3]))
+				if lst[4] != 'нет':
+					photo = open("images\\" + lst[4], 'rb')
+					bot.send_photo(message.chat.id, photo)
 	else:
 		bot.send_message(message.chat.id,text='Такое место не найдено.')
 
@@ -139,14 +127,21 @@ def handle_message(message):
 @bot.message_handler(commands=['reset'])
 def handle_message(message):
 	if len(message.text) > 6:
-		results = search_place(message)
-		if len(results) != 0:
-			del_place(message)
-			bot.send_message(message.chat.id,text='Место {} удалено.'.format(message[7:]))
-		else:
-			bot.send_message(message.chat.id,text='Такое место не найдено.')
+		name = message.text[7:]
+		if message.chat.id in PLACES:
+			if len(PLACES[message.chat.id]) != 0:
+				del_lst = -1
+				for i in range(len(PLACES[message.chat.id])):
+					if PLACES[message.chat.id][i][0] == name:
+						del_lst = i
+				if del_lst != -1:
+					PLACES[message.chat.id].pop(del_lst)
+					bot.send_message(message.chat.id,text='Место {} удалено.'.format(name))
+				else:
+					bot.send_message(message.chat.id,text='Такое место не найдено.')
 	else:
-		del_list(message)
+		if message.chat.id in PLACES:
+			PLACES[message.chat.id].clear()
 		bot.send_message(message.chat.id,text='Список мест очищен.')
 
 @bot.message_handler(content_types=['location'])
@@ -154,16 +149,18 @@ def handle_location(message):
 		loc = message.location #локация и далее координаты
 		lat1 = loc.latitude
 		lon1 = loc.longitude
-		results = near_places(message)
 		i = 0
-		for row in results:
-			if row['latitide'] != 'нет':
-				i += 1
-				lat2 = row['latitide']
-				lon2 = row['longitude']
-				if haversine(lat1, lon1, lat2, lon2) <= 1:
-					bot.send_message(message.chat.id,text=row['name'])
-
+		if message.chat.id in PLACES:
+			if len(PLACES[message.chat.id]) != 0:
+				for row in PLACES[message.chat.id]:
+					if row[2] != 'нет':
+						i += 1
+						lat2 = row[2]
+						lon2 = row[3]
+						if haversine(lat1, lon1, lat2, lon2) <= 1:
+							bot.send_message(message.chat.id,text=row[0])
+			else:
+				bot.send_message(message.chat.id,text='Ваш список мест пуст.')
 		if i == 0:
 			bot.send_message(message.chat.id,text='Ближайших мест не найдено.')
 
